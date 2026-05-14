@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.Python
+
+# Virtual env
+venv/
+env/
+.venv/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+logs/
+
+# ML model artifacts (built in later phases)
+ml_models/*.pkl
+ml_models/*.joblib
+*.h5
+
+# Uploads (for KYC images in later phases)
+uploads/
