@@ -2,17 +2,26 @@
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 
-# Database
 sqlalchemy==2.0.35
 psycopg2-binary==2.9.9
+alembic==1.13.3
 
-# Config & validation
 pydantic==2.9.2
 pydantic-settings==2.5.2
 email-validator==2.2.0
 python-dotenv==1.0.1
 
-# Auth & security (used from Phase 2 onward)
 passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.12
+
+# HTTP client (used for Supabase Storage REST API)
+httpx==0.27.2
+
+# Phase 3 — KYC computer-vision pipeline
+groq==0.11.0                 # LLM + vision (Llama 4 Scout for OCR + face match)
+opencv-python-headless==4.10.0.84   # video frame extraction
+mediapipe==0.10.14            # liveness: blink + head pose
+Pillow==10.4.0                # image encode/decode
+numpy==1.26.4                 # arrays (pinned for mediapipe compat)

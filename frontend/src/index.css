@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+@theme {
+  --color-saarthi: #6C63FF;
+  --color-saarthi-dark: #5a52d6;
+  --color-saarthi-soft: #f0f0f8;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #f7f7fb;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

@@ -23,7 +23,17 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     # ---------- External APIs ----------
-    GEMINI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+
+    # ---------- Supabase Storage (Phase 2 — KYC media) ----------
+    # Dashboard → Project Settings → API
+    SUPABASE_URL: str = ""                       # e.g. https://<ref>.supabase.co
+    SUPABASE_SERVICE_ROLE_KEY: str = ""          # server-only; bypasses RLS. NEVER ship to frontend.
+    SUPABASE_STORAGE_BUCKET: str = "kyc-media"   # create this bucket in Supabase dashboard (private)
+
+    # ---------- Upload limits ----------
+    MAX_VIDEO_BYTES: int = 50 * 1024 * 1024      # 50 MB
+    MAX_IMAGE_BYTES: int = 8 * 1024 * 1024       # 8 MB
 
     # ---------- CORS ----------
     FRONTEND_URL: str = "http://localhost:5173"

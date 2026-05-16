@@ -59,5 +59,10 @@ class UserService:
         return user
 
     @staticmethod
+    def get_user_by_email(db: Session, email: str) -> User | None:
+        """Return the user with this email or None (does NOT raise)."""
+        return db.query(User).filter(User.email == email).first()
+
+    @staticmethod
     def list_users(db: Session, skip: int = 0, limit: int = 50):
         return db.query(User).offset(skip).limit(limit).all()

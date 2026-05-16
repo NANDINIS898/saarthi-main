@@ -12,8 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import models  # noqa: F401 -- ensures models are registered with Base
-from app.database.connection import Base, engine
-from app.routes import health, users
+from app.routes import auth, health, kyc, users
 from app.utils.logger import logger
 
 
@@ -21,9 +20,7 @@ from app.utils.logger import logger
 async def lifespan(app: FastAPI):
     """Runs on startup & shutdown."""
     logger.info(f"Starting {settings.APP_NAME} backend in {settings.APP_ENV} mode...")
-    # For Phase 1 we auto-create tables. In production we'll switch to Alembic migrations.
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables ensured.")
+    # Schema is now managed by Alembic. Run `alembic upgrade head` to apply migrations.
     yield
     logger.info(f"Shutting down {settings.APP_NAME} backend.")
 
@@ -50,7 +47,9 @@ app.add_middleware(
 
 # ---------- Routers ----------
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(kyc.router)
 
 
 @app.get("/", tags=["Root"])
