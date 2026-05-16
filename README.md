@@ -1,4 +1,4 @@
-# 🧠 Saarthi : AI-Powered Video-Based Digital Loan Assistant
+# Saarthi : AI-Powered Video-Based Digital Loan Assistant
 
 Saarthi is a real-time, AI-driven, video-based loan onboarding and decision intelligence system designed to transform traditional form-based lending journeys into intelligent conversational experiences.
 
