@@ -1,4 +1,4 @@
-# 🧠 Saarthi — AI-Powered Video-Based Loan Assistant
+# 🧠 Saarthi : AI-Powered Video-Based Digital Loan Assistant
 
 Saarthi is a real-time, AI-driven, video-based loan onboarding and decision intelligence system designed to transform traditional form-based lending journeys into intelligent conversational experiences.
 
@@ -8,14 +8,14 @@ Instead of static forms and manual verification, users interact with Saarthi thr
 
 # 🚀 Vision
 
-With Saarthi, we aim to build the next generation of intelligent lending systems that are:
+With Saarthi, I aim to build the next generation of intelligent lending systems that are:
 
 - Conversational instead of form-based
 - Explainable instead of black-box
 - Real-time instead of delayed
 - User-centric instead of process-centric
 
-Our goal is to reduce onboarding friction, improve fraud detection, and deliver transparent financial decision-making using AI, ML, and multi-agent orchestration.
+My goal is to reduce onboarding friction, improve fraud detection, and deliver transparent financial decision-making using AI, ML, and multi-agent orchestration.
 
 ---
 
