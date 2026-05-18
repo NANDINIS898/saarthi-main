@@ -1,0 +1,21 @@
+{
+  "feature_columns": [
+    "monthly_income",
+    "age",
+    "employment_years",
+    "existing_loans_count",
+    "credit_history_months",
+    "previous_defaults",
+    "loan_amount",
+    "loan_tenure_months",
+    "emi_to_income_ratio",
+    "kyc_face_match",
+    "kyc_liveness",
+    "address_stability_yrs"
+  ],
+  "model_version": "saarthi-xgb-v1",
+  "trained_on": "synthetic_v1",
+  "test_auc": 0.8834,
+  "n_train": 40000,
+  "n_test": 10000
+}

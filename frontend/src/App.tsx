@@ -4,6 +4,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import KycSession from "./pages/KycSession";
+import LoanFlow from "./pages/LoanFlow";
 import { useAuth } from "./store/auth";
 
 export default function App() {
@@ -49,6 +50,18 @@ export default function App() {
               <FullScreenLoading />
             ) : authenticated ? (
               <KycSession />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/loan"
+          element={
+            loading ? (
+              <FullScreenLoading />
+            ) : authenticated ? (
+              <LoanFlow />
             ) : (
               <Navigate to="/login" replace />
             )

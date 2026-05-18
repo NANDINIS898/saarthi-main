@@ -148,10 +148,14 @@ class KYCService:
     async def _read_and_validate(
         file: UploadFile, *, allowed: set[str], max_bytes: int, kind: str
     ) -> tuple[bytes, str]:
-        if file.content_type not in allowed:
+        # MediaRecorder often emits MIMEs like "video/webm;codecs=vp9".
+        # Strip the codec parameter before comparing against the allowed set.
+        raw = (file.content_type or "").strip()
+        base_type = raw.split(";", 1)[0].strip().lower()
+        if base_type not in allowed:
             raise HTTPException(
                 status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                f"Unsupported {kind} type '{file.content_type}'. Allowed: {sorted(allowed)}",
+                f"Unsupported {kind} type '{raw}'. Allowed: {sorted(allowed)}",
             )
         content = await file.read()
         if len(content) == 0:
@@ -161,4 +165,4 @@ class KYCService:
                 status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 f"{kind.capitalize()} exceeds {max_bytes // (1024 * 1024)} MB limit.",
             )
-        return content, file.content_type
+        return content, base_type

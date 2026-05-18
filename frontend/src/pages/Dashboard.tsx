@@ -65,8 +65,26 @@ export default function Dashboard() {
           </button>
         </section>
 
+        {/* Loan action card */}
+        <section className={`bg-white rounded-2xl border p-5 ${isApproved ? "border-gray-200" : "border-gray-100 opacity-60"}`}>
+          <h2 className="text-base font-semibold text-gray-900 mb-1">Apply for a loan</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            {isApproved
+              ? "Our underwriting agent will score you with XGBoost, then the decision engine will personalise 3 offers."
+              : "Complete KYC verification above first."}
+          </p>
+
+          <button
+            onClick={() => navigate("/loan")}
+            disabled={!isApproved}
+            className="bg-[#6C63FF] hover:bg-[#5a52d6] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg px-4 py-2.5 text-sm w-full md:w-auto"
+          >
+            Start loan application
+          </button>
+        </section>
+
         <p className="text-xs text-gray-400 text-center pt-4">
-          Phases done: 1 Auth · 2 Media · 3 KYC pipeline. Loan flow comes next.
+          Phases done: 1 Auth · 2 Media · 3 KYC pipeline · 4 Underwriting + Decision Engine + Negotiation.
         </p>
       </main>
     </div>

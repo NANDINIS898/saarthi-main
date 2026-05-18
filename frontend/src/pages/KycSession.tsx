@@ -90,13 +90,23 @@ export default function KycSession() {
       return;
     }
     streamRef.current = stream;
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play().catch(() => { /* autoplay handled */ });
-    }
-    setStage("preview");
+    setStage("preview");                       // mounts the <video> element
     setCountdown(PREVIEW_COUNTDOWN_SECONDS);
   }
+
+  // Attach the camera stream to the <video> element AFTER it mounts.
+  // (Doing this inside begin() doesn't work because <video> only renders
+  // once stage flips to "preview".)
+  useEffect(() => {
+    const cameraStages: Stage[] = ["preview", "recording_face", "recording_id"];
+    if (!cameraStages.includes(stage)) return;
+    const v = videoRef.current;
+    const s = streamRef.current;
+    if (v && s && v.srcObject !== s) {
+      v.srcObject = s;
+      v.play().catch(() => { /* autoplay policy — muted+playsInline should allow it */ });
+    }
+  }, [stage]);
 
   // ── Stage 2 — preview countdown then start recording the face phase ─────
   useEffect(() => {

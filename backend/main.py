@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import models  # noqa: F401 -- ensures models are registered with Base
-from app.routes import auth, health, kyc, users
+from app.routes import applications, auth, health, kyc, users
 from app.utils.logger import logger
 
 
@@ -50,6 +50,7 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(kyc.router)
+app.include_router(applications.router)
 
 
 @app.get("/", tags=["Root"])

@@ -25,3 +25,10 @@ opencv-python-headless==4.10.0.84   # video frame extraction
 mediapipe==0.10.14            # liveness: blink + head pose
 Pillow==10.4.0                # image encode/decode
 numpy==1.26.4                 # arrays (pinned for mediapipe compat)
+
+# Phase 4 — Underwriting + Decision Engine
+xgboost==2.1.1                # risk model
+scikit-learn==1.5.2           # train/test split, metrics
+shap==0.46.0                  # explainability
+pandas==2.2.3                 # feature frames
+reportlab==4.2.5              # sanction letter PDF
