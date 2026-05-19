@@ -5,7 +5,7 @@
 Saarthi replaces paper-and-form loan applications with a 5-minute conversational
 experience: a live video KYC session, an XGBoost risk model with SHAP
 explainability, and a multi-agent layer that negotiates the offer and issues
-the sanction letter — all guided by a voice-driven AI assistant.
+the sanction letter, all guided by a voice-driven AI assistant.
 
 ---
 
@@ -292,12 +292,12 @@ Every authenticated route expects an `Authorization: Bearer <jwt>` header.
 
 ---
 
-## Roadmap
+## Future Integrations
 
 - [ ] Swap synthetic training data for the real Home Credit Default Risk dataset
 - [ ] Admin review screen for pending sanction letters
 - [ ] Voice-driven actions (accept / negotiate directly from the assistant)
-- [ ] STT for the KYC session itself — auto-extract loan amount and income from the spoken video
+- [ ] STT for the KYC session itself, auto-extract loan amount and income from the spoken video
 - [ ] Production anti-spoof model (replacement for the MediaPipe blink-based check)
 - [ ] WebRTC streaming KYC (instead of chunked upload)
 - [ ] Multi-language support (Hindi + regional languages via Whisper)
