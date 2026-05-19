@@ -5,6 +5,8 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import KycSession from "./pages/KycSession";
 import LoanFlow from "./pages/LoanFlow";
+import Applications from "./pages/Applications";
+import { SaarthiAssistant } from "./components/SaarthiAssistant";
 import { useAuth } from "./store/auth";
 
 export default function App() {
@@ -22,6 +24,8 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      {/* Floating Saarthi assistant — global, only when authenticated. */}
+      {authenticated && <SaarthiAssistant />}
       <Routes>
         <Route
           path="/login"
@@ -62,6 +66,30 @@ export default function App() {
               <FullScreenLoading />
             ) : authenticated ? (
               <LoanFlow />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/loan/:id"
+          element={
+            loading ? (
+              <FullScreenLoading />
+            ) : authenticated ? (
+              <LoanFlow />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/applications"
+          element={
+            loading ? (
+              <FullScreenLoading />
+            ) : authenticated ? (
+              <Applications />
             ) : (
               <Navigate to="/login" replace />
             )

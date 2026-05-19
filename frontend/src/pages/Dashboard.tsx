@@ -1,16 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../store/auth";
-import { Logo } from "../components/Logo";
+import { AppHeader } from "../components/AppHeader";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const user = useAuth((s) => s.user);
-  const logout = useAuth((s) => s.logout);
-
-  function onLogout() {
-    logout();
-    navigate("/login");
-  }
 
   const kyc = user?.kyc_status || "pending";
   const isApproved = kyc === "approved";
@@ -18,23 +12,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen">
-      <header className="bg-[#6C63FF] text-white">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Logo size={36} />
-            <div>
-              <p className="font-semibold">Saarthi</p>
-              <p className="text-xs text-white/70">AI loan assistant</p>
-            </div>
-          </div>
-          <div className="text-right text-sm">
-            <p className="font-medium">{user?.full_name}</p>
-            <button onClick={onLogout} className="text-xs text-white/80 hover:underline">
-              Sign out
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       <main className="max-w-3xl mx-auto px-6 py-6 space-y-4">
         {/* Account summary */}

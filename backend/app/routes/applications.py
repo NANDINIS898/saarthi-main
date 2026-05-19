@@ -24,9 +24,9 @@ from app.agents.negotiation_agent import NegotiationAgent
 from app.agents.sanction_writer import SanctionWriter
 from app.agents.underwriting_agent import UnderwritingAgent
 from app.database.connection import get_db
-from app.database.models import RiskAssessment, SanctionLetter, User
+from app.database.models import LoanOffer, RiskAssessment, SanctionLetter, User
 from app.schemas.loan import (
-    LoanApplicationCreate, LoanApplicationOut, LoanOfferOut,
+    ApplicationSummary, LoanApplicationCreate, LoanApplicationOut, LoanOfferOut,
     NegotiationRequest, NegotiationResponse, RiskAssessmentOut,
     SanctionLetterOut,
 )
@@ -62,6 +62,53 @@ def get_application(
     user: User = Depends(get_current_user),
 ):
     return LoanService.get(db, application_id, user)
+
+
+@router.get("/{application_id}/summary", response_model=ApplicationSummary)
+async def application_summary(
+    application_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Aggregated view of an application: risk + offers + sanction + lifecycle
+    flags. Used by the Applications list and the resume-loan-flow screen.
+    """
+    app = LoanService.get(db, application_id, user)
+
+    risk = (
+        db.query(RiskAssessment)
+        .filter(RiskAssessment.application_id == app.id)
+        .order_by(RiskAssessment.id.desc())
+        .first()
+    )
+    offers = (
+        db.query(LoanOffer)
+        .filter(LoanOffer.application_id == app.id)
+        .order_by(LoanOffer.id.asc())
+        .all()
+    )
+    accepted = next((o for o in offers if o.accepted), None)
+    sanction_row = (
+        db.query(SanctionLetter)
+        .filter(SanctionLetter.application_id == app.id)
+        .first()
+    )
+    sanction_out = await _letter_with_signed_url(sanction_row) if sanction_row else None
+
+    return ApplicationSummary(
+        application=app,                      # type: ignore[arg-type]
+        risk=risk,                            # type: ignore[arg-type]
+        offers=offers,                        # type: ignore[arg-type]
+        accepted_offer=accepted,              # type: ignore[arg-type]
+        sanction=sanction_out,
+        kyc_done=(user.kyc_status == "approved"),
+        underwriting_done=risk is not None,
+        offers_generated=bool(offers),
+        offer_accepted=accepted is not None,
+        sanction_issued=sanction_row is not None,
+        admin_approved=bool(sanction_row and sanction_row.status == "approved"),
+    )
 
 
 # ─── Underwriting ─────────────────────────────────────────────────────────────

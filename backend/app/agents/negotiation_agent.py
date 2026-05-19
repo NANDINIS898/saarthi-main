@@ -18,6 +18,7 @@ row (negotiation_round += 1), and return it.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -42,6 +43,13 @@ below rate_floor, never exceed max_tenure_months, never let EMI/income exceed ma
 You are helpful but firm. If the borrower asks for something outside policy,
 counter with the closest legal option and explain why.
 
+CRITICAL FORMATTING RULE for message_to_user:
+  - DO NOT mention specific rupee EMI / amount / interest-rate / tenure NUMBERS.
+  - The UI displays those values in a structured card next to your message.
+  - Talk about the *change* you made ("I extended the tenure", "I dropped the
+    rate to the floor", "I trimmed the principal slightly") — NOT the figures.
+  - Quoting numbers risks them being out of sync with the recomputed offer.
+
 Reply with ONLY a JSON object. Never include prose outside the JSON."""
 
 
@@ -58,14 +66,22 @@ _USER_TEMPLATE = """## Borrower message
 {history}
 
 ## Your task
-Propose ONE counter-offer that respects every constraint. Return strictly this JSON:
+First decide if the borrower is *accepting* the current offer (phrases like
+"yes do that", "accept", "I'll take it", "go ahead", "sounds good", "okay
+let's do it", "perfect", "sign me up"). If they are, set
+user_accepting=true and STILL return the current offer numbers unchanged.
+
+Otherwise propose ONE counter-offer that respects every constraint.
+
+Return strictly this JSON:
 
 {{
   "amount":          number,
   "interest_rate":   number,
   "tenure_months":   integer,
   "message_to_user": "short 1-3 sentence explanation, friendly and direct",
-  "concession":      "amount | rate | tenure | none — which lever you moved most"
+  "concession":      "amount | rate | tenure | none — which lever you moved most",
+  "user_accepting":  boolean   // true if the borrower wants to accept the current offer
 }}
 
 Rules:
@@ -73,7 +89,28 @@ Rules:
 - tenure_months must be between 12 and {max_tenure_months}
 - amount must be ≤ asked_amount × amount_factor ({max_amount})
 - EMI/monthly_income must be ≤ {max_dti}
+- If user_accepting is true, your message_to_user should confirm the acceptance.
 """
+
+
+# Patterns the LLM tends to use even when told not to:
+#   ₹9,441 · Rs 9441 · INR 9,441 · 9441 rupees · 9,441/month · EMI of 9441
+_RUPEE_PATTERNS = [
+    re.compile(r"(?:₹|Rs\.?|INR)\s*[\d,]+(?:\.\d+)?", re.IGNORECASE),
+    re.compile(r"\b\d[\d,]{2,}(?:\.\d+)?\s*(?:rupees?|/\s*month|per\s*month)\b", re.IGNORECASE),
+    re.compile(r"\bEMI\s+(?:of|to|at|now|will\s+be)\s*[\d,]+(?:\.\d+)?\b", re.IGNORECASE),
+]
+
+
+def _strip_specific_figures(text: str) -> str:
+    """Remove rupee-figure phrases so chat text can't disagree with the offer card."""
+    if not text:
+        return text
+    cleaned = text
+    for pat in _RUPEE_PATTERNS:
+        cleaned = pat.sub("the new figure", cleaned)
+    # Collapse double spaces from substitutions.
+    return re.sub(r"\s{2,}", " ", cleaned).strip()
 
 
 def _client() -> Groq:
@@ -130,30 +167,69 @@ class NegotiationAgent:
         )
 
         client = _client()
-        resp = client.chat.completions.create(
-            model=NEGOTIATION_MODEL,
-            messages=[{"role": "system", "content": _SYSTEM},
-                      {"role": "user",   "content": prompt}],
-            temperature=0.3,
-            max_tokens=500,
-            response_format={"type": "json_object"},
-        )
-        raw = resp.choices[0].message.content or ""
+        try:
+            resp = client.chat.completions.create(
+                model=NEGOTIATION_MODEL,
+                messages=[{"role": "system", "content": _SYSTEM},
+                          {"role": "user",   "content": prompt}],
+                temperature=0.3,
+                max_tokens=500,
+                response_format={"type": "json_object"},
+            )
+        except Exception as e:
+            # Could be: invalid API key, rate limit, deprecated model, network error.
+            # Surface the real reason so the user can fix it instead of seeing a generic 500.
+            logger.exception("Groq negotiation call failed")
+            cls = type(e).__name__
+            raise HTTPException(
+                status.HTTP_502_BAD_GATEWAY,
+                f"Negotiation LLM call failed ({cls}): {str(e)[:300]}",
+            )
+
+        raw = (resp.choices[0].message.content or "").strip()
+        if not raw:
+            logger.error("Negotiation LLM returned an empty response")
+            raise HTTPException(
+                status.HTTP_502_BAD_GATEWAY,
+                "Negotiation agent returned an empty response.",
+            )
         try:
             proposal = json.loads(raw)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             logger.error(f"Negotiation LLM returned non-JSON: {raw[:300]}")
             raise HTTPException(
                 status.HTTP_502_BAD_GATEWAY,
-                "Negotiation agent returned an invalid response.",
+                f"Negotiation agent returned invalid JSON: {e}",
             )
 
         # Server-side guardrails — we don't trust the model's math/limits.
         proposal = _enforce(proposal, constraints, current, max_amount)
 
-        # Recompute EMI ourselves (no drift from the LLM's mental arithmetic).
-        m = calculate(proposal["amount"], proposal["interest_rate"], proposal["tenure_months"])
+        # If the borrower is signalling acceptance, don't mint a new offer row —
+        # just echo the current offer back with the acceptance flag set so the
+        # UI can show a "Confirm" CTA pointing at the existing offer id.
+        if proposal["user_accepting"]:
+            agent_msg = _strip_specific_figures(proposal.get("message_to_user", ""))
+            db.add(AgentDecision(
+                application_id=application.id,
+                agent_name="negotiation",
+                decision="user_signalled_accept",
+                reasoning=agent_msg[:1000],
+                llm_trace={"user_message": user_message, "proposal": proposal,
+                           "model": NEGOTIATION_MODEL, "target_offer_id": current.id},
+            ))
+            db.commit()
+            return {
+                "offer": current,
+                "agent_message": agent_msg,
+                "concession": "none",
+                "round": current.negotiation_round or 0,
+                "dti": emi_to_income_ratio(current.emi, constraints["monthly_income"]),
+                "user_accepting": True,
+            }
 
+        # Otherwise this is a true counter-offer — persist a new row.
+        m = calculate(proposal["amount"], proposal["interest_rate"], proposal["tenure_months"])
         new_round = (current.negotiation_round or 0) + 1
         offer = LoanOffer(
             application_id=application.id,
@@ -167,11 +243,12 @@ class NegotiationAgent:
             accepted=False,
         )
         db.add(offer)
+        agent_msg = _strip_specific_figures(proposal.get("message_to_user", ""))
         db.add(AgentDecision(
             application_id=application.id,
             agent_name="negotiation",
             decision=f"counter_round_{new_round}",
-            reasoning=proposal.get("message_to_user", "")[:1000],
+            reasoning=agent_msg[:1000],
             llm_trace={
                 "user_message": user_message,
                 "proposal": proposal,
@@ -181,12 +258,16 @@ class NegotiationAgent:
         db.commit()
         db.refresh(offer)
 
+        # Return the SQLAlchemy row directly — NegotiationResponse / LoanOfferOut
+        # has `from_attributes=True` so Pydantic will pull every column off the
+        # ORM object (including server-generated `created_at`).
         return {
-            "offer": _offer_dict(offer),
-            "agent_message": proposal.get("message_to_user", ""),
+            "offer": offer,
+            "agent_message": agent_msg,
             "concession": proposal.get("concession", "none"),
             "round": new_round,
             "dti": emi_to_income_ratio(m.emi, constraints["monthly_income"]),
+            "user_accepting": False,
         }
 
 
@@ -247,6 +328,7 @@ def _enforce(
         "tenure_months":   int(tenure),
         "message_to_user": proposal.get("message_to_user", ""),
         "concession":      proposal.get("concession", "none"),
+        "user_accepting":  bool(proposal.get("user_accepting", False)),
     }
 
 

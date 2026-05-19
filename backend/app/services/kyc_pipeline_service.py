@@ -15,6 +15,7 @@ otherwise it would block the FastAPI event loop.
 """
 
 import asyncio
+import re
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -69,7 +70,7 @@ class KYCPipelineService:
             return session
 
         # ── 5. Decide ─────────────────────────────────────────────────────────
-        decision, reason = _decide(ocr_data, face_data, liveness_data)
+        decision, reason = _decide(ocr_data, face_data, liveness_data, user)
 
         # ── 6. Persist ────────────────────────────────────────────────────────
         session.ocr_extracted = ocr_data
@@ -149,7 +150,12 @@ def _run_cv_stack(video_bytes: bytes, aadhaar_front_bytes: bytes) -> tuple[dict,
     return ocr_data, face_data, liveness_data
 
 
-def _decide(ocr: dict[str, Any], face: dict[str, Any], live: dict[str, Any]) -> tuple[str, str]:
+def _decide(
+    ocr: dict[str, Any],
+    face: dict[str, Any],
+    live: dict[str, Any],
+    user: User,
+) -> tuple[str, str]:
     """Return (decision, reason). Decision is 'approved' or 'rejected'."""
     reasons = []
 
@@ -158,6 +164,16 @@ def _decide(ocr: dict[str, Any], face: dict[str, Any], live: dict[str, Any]) -> 
     for field in OCR_REQUIRED_FIELDS:
         if not ocr.get(field):
             reasons.append(f"missing OCR field: {field}")
+
+    # NEW: the OCR name on the card must match the registered account name.
+    # Without this, a user can pass KYC by showing someone else's card whose
+    # owner happens to be the live person on camera.
+    ocr_name = (ocr.get("full_name") or "").strip()
+    if ocr_name and not _names_match(user.full_name, ocr_name):
+        reasons.append(
+            f"name on Aadhaar ('{ocr_name}') doesn't match account name "
+            f"('{user.full_name}')"
+        )
 
     match_score = float(face.get("match_score") or 0.0)
     if not face.get("same_person") or match_score < FACE_MATCH_MIN:
@@ -170,3 +186,28 @@ def _decide(ocr: dict[str, Any], face: dict[str, Any], live: dict[str, Any]) -> 
     if reasons:
         return "rejected", "; ".join(reasons)
     return "approved", "all checks passed"
+
+
+def _names_match(registered: str, on_card: str) -> bool:
+    """
+    Fuzzy comparison good enough to catch impersonation while tolerating
+    Indian-name realities: middle names, initials, title prefixes, case.
+
+    Rule: both the FIRST and LAST tokens of the registered name must appear
+    somewhere in the tokens of the card name (case-insensitive, punctuation
+    stripped). Single-name users degenerate to "that single token must appear".
+    """
+    def _tokens(s: str) -> list[str]:
+        cleaned = re.sub(r"[^a-z\s]", " ", (s or "").lower())
+        # Drop common Indian honorifics + initials that add no identity info.
+        skip = {"mr", "mrs", "ms", "miss", "shri", "sri", "smt", "kumari", "kumar", "sh"}
+        return [t for t in cleaned.split() if len(t) >= 2 and t not in skip]
+
+    reg = _tokens(registered)
+    card = _tokens(on_card)
+    if not reg or not card:
+        return False
+
+    if len(reg) == 1:
+        return reg[0] in card
+    return reg[0] in card and reg[-1] in card

@@ -1,12 +1,13 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { api, apiErrorMessage } from "../api/client";
 import type {
-  LoanApplication, LoanOffer, NegotiationResponse,
+  ApplicationSummary, LoanApplication, LoanOffer, NegotiationResponse,
   RiskAssessment, SanctionLetter,
 } from "../api/types";
 import { useAuth } from "../store/auth";
-import { Logo } from "../components/Logo";
+import { AppHeader } from "../components/AppHeader";
+import { RiskAssessmentCard } from "../components/RiskAssessmentCard";
 
 /**
  * Single-page loan flow.
@@ -21,6 +22,8 @@ type Stage = "apply" | "underwriting" | "offers" | "sanctioned";
 
 export default function LoanFlow() {
   const navigate = useNavigate();
+  const params = useParams();
+  const resumeId = params.id ? Number(params.id) : null;
   const user = useAuth((s) => s.user);
 
   const [stage, setStage] = useState<Stage>("apply");
@@ -28,11 +31,48 @@ export default function LoanFlow() {
   const [risk, setRisk] = useState<RiskAssessment | null>(null);
   const [offers, setOffers] = useState<LoanOffer[]>([]);
   const [sanction, setSanction] = useState<SanctionLetter | null>(null);
-  const [chat, setChat] = useState<{ from: "user" | "agent"; text: string }[]>([]);
+  // Chat entries can carry an inline offer card (when agent counters) and an
+  // acceptingHint flag (when the LLM thinks the user just said yes).
+  type ChatEntry = {
+    from: "user" | "agent";
+    text: string;
+    offer?: LoanOffer;
+    acceptingHint?: boolean;
+  };
+  const [chat, setChat] = useState<ChatEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hydrating, setHydrating] = useState(false);
 
   const kycOk = user?.kyc_status === "approved";
+
+  // ─── Resume an existing application via /loan/:id ────────────────────────
+  useEffect(() => {
+    if (resumeId == null) return;
+    let cancelled = false;
+    (async () => {
+      setHydrating(true);
+      setError(null);
+      try {
+        const { data } = await api.get<ApplicationSummary>(`/applications/${resumeId}/summary`);
+        if (cancelled) return;
+        setApplication(data.application);
+        setRisk(data.risk);
+        setOffers(data.offers);
+        setSanction(data.sanction);
+        // Derive stage from what's already on the server.
+        if (data.sanction_issued) setStage("sanctioned");
+        else if (data.offers_generated) setStage("offers");
+        else if (data.underwriting_done) setStage("offers");
+        else setStage("underwriting");
+      } catch (err) {
+        if (!cancelled) setError(apiErrorMessage(err));
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [resumeId]);
 
   // ─── Apply ───────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
@@ -102,12 +142,18 @@ export default function LoanFlow() {
         `/applications/${application.id}/negotiate`,
         { message: msg },
       );
-      setChat((c) => [...c, { from: "agent", text: data.agent_message }]);
-      // Replace recommended offer with the new counter
-      setOffers((prev) => [
-        data.offer,
-        ...prev.filter((p) => !p.is_recommended || p.is_negotiated),
-      ]);
+      setChat((c) => [...c, {
+        from: "agent",
+        text: data.agent_message,
+        offer: data.offer,                   // inline card under the message
+        acceptingHint: data.user_accepting,  // promote the Accept button
+      }]);
+      // Also keep the offers list above the chat in sync — pin the latest
+      // negotiated offer to the top so the offer cards section reflects it.
+      setOffers((prev) => {
+        const withoutOld = prev.filter((p) => p.id !== data.offer.id);
+        return [data.offer, ...withoutOld];
+      });
     } catch (err) {
       const msg = apiErrorMessage(err);
       setError(msg);
@@ -138,22 +184,14 @@ export default function LoanFlow() {
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen">
-      <header className="bg-[#6C63FF] text-white">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Logo size={36} />
-            <div>
-              <p className="font-semibold">Loan application</p>
-              <p className="text-xs text-white/70">Saarthi · underwriting + negotiation</p>
-            </div>
-          </div>
-          <button onClick={() => navigate("/dashboard")} className="text-xs text-white/80 hover:underline">
-            Back to dashboard
-          </button>
-        </div>
-      </header>
+      <AppHeader subtitle={resumeId ? `Application #${resumeId}` : "New loan application"} />
 
       <main className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+        {hydrating && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center text-sm text-gray-500">
+            Loading application…
+          </div>
+        )}
         {!kycOk && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-800">
             You need to complete KYC verification before applying.{" "}
@@ -215,37 +253,29 @@ export default function LoanFlow() {
           </section>
         )}
 
-        {/* 3. Offers + chat */}
+        {/* 3. Risk assessment → offers → chat */}
         {stage === "offers" && risk && (
           <>
-            <section className="bg-white rounded-2xl border border-gray-200 p-5">
-              <div className="flex items-baseline justify-between mb-3">
-                <h2 className="text-base font-semibold text-gray-900">Your offers</h2>
-                <span className="text-xs text-gray-500">credit score {Math.round(risk.risk_score)}</span>
+            {/* Risk panel sits ABOVE the offers so the user understands the
+                score before seeing what was offered. */}
+            <RiskAssessmentCard risk={risk} />
+
+            <section className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="px-5 pt-5 pb-3">
+                <p className="text-xs font-semibold text-gray-400 tracking-wider uppercase">
+                  Personalised offers
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Generated for credit score <b className="text-gray-900">{Math.round(risk.risk_score)}</b>{" "}
+                  {risk.decision === "approve" && <span className="text-emerald-700">· approved</span>}
+                  {risk.decision === "review"  && <span className="text-amber-700">· under review</span>}
+                </p>
               </div>
-              <div className="space-y-3">
+              <div className="px-5 pb-5 space-y-3">
                 {offers.map((o) => (
                   <OfferCard key={o.id} offer={o} busy={busy} onAccept={() => accept(o)} />
                 ))}
               </div>
-              {risk.shap_values && (
-                <details className="mt-4 text-xs text-gray-500">
-                  <summary className="cursor-pointer">Why this score? (SHAP top drivers)</summary>
-                  <ul className="mt-2 space-y-1">
-                    {Object.entries(risk.shap_values)
-                      .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
-                      .slice(0, 5)
-                      .map(([k, v]) => (
-                        <li key={k} className="flex justify-between">
-                          <span>{k}</span>
-                          <span className={v < 0 ? "text-emerald-600" : "text-red-600"}>
-                            {v > 0 ? "+" : ""}{v.toFixed(3)}
-                          </span>
-                        </li>
-                      ))}
-                  </ul>
-                </details>
-              )}
             </section>
 
             <section className="bg-white rounded-2xl border border-gray-200 p-5">
@@ -253,19 +283,28 @@ export default function LoanFlow() {
               <p className="text-xs text-gray-500 mb-3">
                 Ask for a lower EMI, longer tenure, or better rate. The agent stays inside policy.
               </p>
-              <div className="space-y-2 max-h-72 overflow-y-auto mb-3">
+              <div className="space-y-2 max-h-96 overflow-y-auto mb-3">
                 {chat.length === 0 && (
                   <p className="text-xs text-gray-400 italic">e.g. "Can you bring the EMI down to ₹10,000?"</p>
                 )}
                 {chat.map((m, i) => (
-                  <div key={i} className={`flex ${m.from === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
+                  <div key={i} className={`flex flex-col ${m.from === "user" ? "items-end" : "items-start"}`}>
+                    <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
                       m.from === "user"
                         ? "bg-[#6C63FF] text-white rounded-br-sm"
                         : "bg-gray-100 text-gray-800 rounded-bl-sm"
                     }`}>
                       {m.text}
                     </div>
+                    {/* Inline offer card attached to the agent message that produced it */}
+                    {m.from === "agent" && m.offer && (
+                      <InlineOfferCard
+                        offer={m.offer}
+                        acceptingHint={m.acceptingHint}
+                        busy={busy}
+                        onAccept={() => m.offer && accept(m.offer)}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
@@ -327,22 +366,106 @@ function Field({ label, id, children }: { label: string; id: string; children: R
 function OfferCard({ offer, busy, onAccept }: { offer: LoanOffer; busy: boolean; onAccept: () => void }) {
   const isBest = offer.is_recommended;
   return (
-    <div className={`rounded-xl border p-4 ${isBest ? "border-[#6C63FF] bg-[#f7f6ff]" : "border-gray-200"}`}>
-      <div className="flex items-center justify-between mb-2">
+    <div className={`relative rounded-xl border p-4 transition-shadow ${
+      isBest
+        ? "border-[#6C63FF] bg-gradient-to-br from-[#f7f6ff] to-white shadow-sm"
+        : "border-gray-200 hover:border-gray-300"
+    }`}>
+      {isBest && !offer.is_negotiated && (
+        <span className="absolute -top-2 left-3 text-[10px] font-bold tracking-wider uppercase bg-[#6C63FF] text-white px-2 py-0.5 rounded">
+          Recommended
+        </span>
+      )}
+      {offer.is_negotiated && (
+        <span className="absolute -top-2 left-3 text-[10px] font-bold tracking-wider uppercase bg-emerald-600 text-white px-2 py-0.5 rounded">
+          Negotiated · round {offer.negotiation_round}
+        </span>
+      )}
+
+      <div className="flex items-baseline justify-between mb-3">
+        <div>
+          <p className="text-[10px] font-semibold text-gray-400 tracking-wider uppercase">Loan amount</p>
+          <p className="text-2xl font-bold text-gray-900 leading-tight">
+            ₹ {offer.amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-semibold text-gray-400 tracking-wider uppercase">Monthly EMI</p>
+          <p className="text-lg font-bold text-[#6C63FF] leading-tight">
+            ₹ {offer.emi.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 text-xs mb-3 pb-3 border-b border-gray-100">
+        <div className="bg-gray-50 rounded-lg px-3 py-2">
+          <p className="text-gray-400">Interest rate</p>
+          <p className="text-gray-900 font-semibold mt-0.5">{offer.interest_rate.toFixed(2)}% p.a.</p>
+        </div>
+        <div className="bg-gray-50 rounded-lg px-3 py-2">
+          <p className="text-gray-400">Tenure</p>
+          <p className="text-gray-900 font-semibold mt-0.5">{offer.tenure_months} months</p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between text-[11px] text-gray-500 mb-3">
+        <span>Total payable</span>
+        <span className="font-medium text-gray-700">
+          ₹ {(offer.emi * offer.tenure_months).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+        </span>
+      </div>
+
+      <button onClick={onAccept} disabled={busy}
+        className={`w-full font-medium rounded-lg py-2.5 text-sm transition-colors disabled:opacity-50 ${
+          isBest
+            ? "bg-[#6C63FF] hover:bg-[#5a52d6] text-white"
+            : "bg-white border border-[#6C63FF] text-[#6C63FF] hover:bg-[#f0f0f8]"
+        }`}>
+        {busy ? "Processing…" : "Accept this offer"}
+      </button>
+    </div>
+  );
+}
+
+function InlineOfferCard({
+  offer, acceptingHint, busy, onAccept,
+}: {
+  offer: LoanOffer;
+  acceptingHint?: boolean;
+  busy: boolean;
+  onAccept: () => void;
+}) {
+  return (
+    <div className={`mt-2 max-w-[85%] rounded-xl border p-3 ${
+      acceptingHint ? "border-emerald-400 bg-emerald-50" : "border-[#6C63FF] bg-[#f7f6ff]"
+    }`}>
+      <div className="flex items-center justify-between mb-1.5">
         <p className="text-sm font-semibold text-gray-900">
           ₹ {offer.amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
         </p>
-        {offer.is_negotiated && <Pill text={`negotiation round ${offer.negotiation_round}`} variant="info" />}
-        {isBest && !offer.is_negotiated && <Pill text="recommended" variant="info" />}
+        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+          offer.is_negotiated
+            ? "bg-[#f0f0f8] text-[#6C63FF]"
+            : "bg-gray-100 text-gray-600"
+        }`}>
+          {offer.is_negotiated ? `round ${offer.negotiation_round}` : "current"}
+        </span>
       </div>
-      <div className="grid grid-cols-3 gap-2 text-xs text-gray-600 mb-3">
-        <div><span className="text-gray-400">Rate</span><br/><b className="text-gray-900">{offer.interest_rate.toFixed(2)}% p.a.</b></div>
+      <div className="grid grid-cols-3 gap-2 text-[11px] text-gray-600 mb-2">
+        <div><span className="text-gray-400">Rate</span><br/><b className="text-gray-900">{offer.interest_rate.toFixed(2)}%</b></div>
         <div><span className="text-gray-400">Tenure</span><br/><b className="text-gray-900">{offer.tenure_months} mo</b></div>
         <div><span className="text-gray-400">EMI</span><br/><b className="text-gray-900">₹ {offer.emi.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</b></div>
       </div>
-      <button onClick={onAccept} disabled={busy}
-        className="w-full bg-[#6C63FF] hover:bg-[#5a52d6] disabled:opacity-50 text-white font-medium rounded-lg py-2 text-sm">
-        {busy ? "…" : "Accept this offer"}
+      <button
+        onClick={onAccept}
+        disabled={busy}
+        className={`w-full font-medium rounded-lg py-1.5 text-xs disabled:opacity-50 ${
+          acceptingHint
+            ? "bg-emerald-500 hover:bg-emerald-600 text-white"
+            : "bg-[#6C63FF] hover:bg-[#5a52d6] text-white"
+        }`}
+      >
+        {busy ? "Processing…" : acceptingHint ? "✓ Confirm acceptance" : "Accept this offer"}
       </button>
     </div>
   );

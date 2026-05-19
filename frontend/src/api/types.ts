@@ -84,6 +84,7 @@ export interface NegotiationResponse {
   concession: string;
   round: number;
   dti: number;
+  user_accepting: boolean;
 }
 
 export interface SanctionLetter {
@@ -94,4 +95,36 @@ export interface SanctionLetter {
   signed_url: string | null;
   status: string;
   created_at: string;
+}
+
+export interface ApplicationSummary {
+  application: LoanApplication;
+  risk: RiskAssessment | null;
+  offers: LoanOffer[];
+  accepted_offer: LoanOffer | null;
+  sanction: SanctionLetter | null;
+  kyc_done: boolean;
+  underwriting_done: boolean;
+  offers_generated: boolean;
+  offer_accepted: boolean;
+  sanction_issued: boolean;
+  admin_approved: boolean;
+}
+
+// ─── Saarthi assistant ────────────────────────────────────────────────────
+export interface TranscribeResponse {
+  text: string;
+  duration_s: number | null;
+  language: string | null;
+}
+
+export interface AssistantChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AssistantChatResponse {
+  reply: string;
+  action_hint: "go_negotiate" | "go_accept" | "go_kyc" | null;
+  application_id: number | null;
 }

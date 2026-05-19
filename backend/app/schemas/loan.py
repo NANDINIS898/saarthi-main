@@ -84,3 +84,20 @@ class NegotiationResponse(BaseModel):
     concession: str
     round: int
     dti: float
+    user_accepting: bool = False    # LLM detected an acceptance phrase
+
+
+# ─── Aggregate view for the Applications list page ──────────────────────────
+class ApplicationSummary(BaseModel):
+    application: LoanApplicationOut
+    risk: Optional[RiskAssessmentOut] = None
+    offers: list[LoanOfferOut] = Field(default_factory=list)
+    accepted_offer: Optional[LoanOfferOut] = None
+    sanction: Optional[SanctionLetterOut] = None
+    # Lifecycle flags so the UI can render the timeline without re-deriving:
+    kyc_done: bool = False
+    underwriting_done: bool = False
+    offers_generated: bool = False
+    offer_accepted: bool = False
+    sanction_issued: bool = False
+    admin_approved: bool = False

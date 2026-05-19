@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api, apiErrorMessage } from "../api/client";
 import type { KYCSession } from "../api/types";
 import { useAuth } from "../store/auth";
-import { Logo } from "../components/Logo";
+import { AppHeader } from "../components/AppHeader";
 
 /**
  * Stage machine for the live KYC session.
@@ -233,25 +233,15 @@ export default function KycSession() {
   // ── UI ───────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen">
-      <header className="bg-[#6C63FF] text-white">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Logo size={36} />
-            <div>
-              <p className="font-semibold">Video onboarding</p>
-              <p className="text-xs text-white/70">Saarthi · live KYC session</p>
-            </div>
-          </div>
-          <button
-            onClick={() => { stopCamera(); navigate("/dashboard"); }}
-            className="text-xs text-white/80 hover:underline"
-          >
-            Cancel
-          </button>
-        </div>
-      </header>
+      <AppHeader subtitle="Video onboarding · live KYC session" />
 
       <main className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+        <button
+          onClick={() => { stopCamera(); navigate("/dashboard"); }}
+          className="text-xs text-gray-500 hover:underline"
+        >
+          ← Cancel and go back
+        </button>
         {stage === "intro" && <Intro onBegin={begin} />}
 
         {(stage === "preview" || stage === "recording_face" || stage === "recording_id") && (
