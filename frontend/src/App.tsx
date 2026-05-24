@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import Login from "./pages/Login";
+import Landing from "./pages/Landing";
 import Signup from "./pages/Signup";
 import Assistant from "./pages/Assistant";
 import KycSession from "./pages/KycSession";
@@ -29,7 +29,7 @@ export default function App() {
       <Routes>
         <Route
           path="/login"
-          element={authenticated ? <Navigate to="/assistant" replace /> : <Login />}
+          element={authenticated ? <Navigate to="/assistant" replace /> : <Landing />}
         />
         <Route
           path="/signup"
