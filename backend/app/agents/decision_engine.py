@@ -23,6 +23,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.agents.emi import calculate, emi_to_income_ratio
+from app.agents.exposure import max_safe_principal, snapshot_for
 from app.database.models import (
     AgentDecision, LoanApplication, LoanOffer, RiskAssessment, User,
 )
@@ -81,7 +82,28 @@ class DecisionEngine:
         income       = float(application.monthly_income or 0)
         asked_tenure = int(application.tenure_preference_months or 36)
 
-        offered_amount = round(asked_amount * tier.amount_factor, -2)  # round to nearest ₹100
+        # Tier-based ceiling — how much we'd offer ignoring existing debt.
+        tier_ceiling = round(asked_amount * tier.amount_factor, -2)
+
+        # Headroom ceiling — the largest principal that keeps FOIR ≤ 50% and
+        # exposure ≤ 24× income, given the borrower's existing EMI burden.
+        # Without this, a customer at 4 active loans could still be offered
+        # the full tier amount — overlending.
+        snapshot = snapshot_for(db, user, exclude_application_id=application.id)
+        headroom_ceiling = max_safe_principal(
+            snapshot=snapshot,
+            monthly_income=income,
+            annual_rate_pct=tier.base_rate,
+            tenure_months=min(max(24, asked_tenure), tier.max_tenure),
+        )
+
+        offered_amount = round(min(tier_ceiling, headroom_ceiling), -2)
+        if offered_amount <= 0:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "No safe lending headroom — existing EMIs already consume the "
+                "FOIR budget or exposure cap. Close an existing loan first.",
+            )
 
         variants = _variants(tier, asked_tenure)
         rows: list[LoanOffer] = []
@@ -100,21 +122,29 @@ class DecisionEngine:
             ))
 
         db.add_all(rows)
+        binding = "headroom" if headroom_ceiling < tier_ceiling else "tier"
         db.add(AgentDecision(
             application_id=application.id,
             agent_name="decision_engine",
             decision="offers_generated",
             reasoning=(
-                f"Tier '{tier.name}' applied at score {assessment.risk_score:.0f}. "
-                f"Offered ₹{offered_amount:,.0f} (factor {tier.amount_factor})."
+                f"Tier '{tier.name}' at score {assessment.risk_score:.0f}. "
+                f"Tier ceiling ₹{tier_ceiling:,.0f}, headroom ceiling "
+                f"₹{headroom_ceiling:,.0f} → offered ₹{offered_amount:,.0f} "
+                f"({binding}-bound)."
             ),
             llm_trace={
                 "tier": tier.name,
                 "offered_amount": offered_amount,
+                "tier_ceiling": tier_ceiling,
+                "headroom_ceiling": headroom_ceiling,
+                "binding_constraint": binding,
                 "asked_amount": asked_amount,
                 "asked_tenure": asked_tenure,
                 "monthly_income": income,
                 "max_dti": tier.max_dti,
+                "existing_emi": snapshot.total_monthly_emi,
+                "existing_loans": snapshot.active_loans_count,
             },
         ))
         application.status = "offer_pending"

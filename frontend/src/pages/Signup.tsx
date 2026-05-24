@@ -57,7 +57,7 @@ export default function Signup() {
           minLength={2}
           value={form.full_name}
           onChange={field("full_name")}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF] mb-4"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#10b981] mb-4"
           placeholder="Arjun Mehta"
         />
 
@@ -68,7 +68,7 @@ export default function Signup() {
           required
           value={form.email}
           onChange={field("email")}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF] mb-4"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#10b981] mb-4"
           placeholder="you@example.com"
         />
 
@@ -77,7 +77,7 @@ export default function Signup() {
           id="phone"
           value={form.phone}
           onChange={field("phone")}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF] mb-4"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#10b981] mb-4"
           placeholder="+91…"
         />
 
@@ -89,7 +89,7 @@ export default function Signup() {
           minLength={8}
           value={form.password}
           onChange={field("password")}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF] mb-4"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#10b981] mb-4"
           placeholder="At least 8 characters"
         />
 
@@ -102,14 +102,14 @@ export default function Signup() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-[#6C63FF] hover:bg-[#5a52d6] disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm"
+          className="w-full bg-[#10b981] hover:bg-[#059669] disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm"
         >
           {loading ? "Creating account…" : "Create account"}
         </button>
 
         <p className="text-sm text-gray-500 text-center mt-4">
           Already have an account?{" "}
-          <Link to="/login" className="text-[#6C63FF] font-medium hover:underline">
+          <Link to="/login" className="text-[#10b981] font-medium hover:underline">
             Sign in
           </Link>
         </p>

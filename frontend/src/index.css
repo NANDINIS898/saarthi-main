@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --color-saarthi: #6C63FF;
-  --color-saarthi-dark: #5a52d6;
-  --color-saarthi-soft: #f0f0f8;
+  --color-saarthi: #10b981;
+  --color-saarthi-dark: #059669;
+  --color-saarthi-soft: #ecfdf5;
 }
 
 html, body, #root {
@@ -12,7 +12,8 @@ html, body, #root {
 }
 
 body {
-  background: #f7f7fb;
+  background: #F9FAFB;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  color: #111827;
 }

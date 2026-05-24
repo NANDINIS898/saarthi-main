@@ -43,7 +43,7 @@ export default function Login() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF] mb-4"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#10b981] mb-4"
           placeholder="you@example.com"
         />
 
@@ -55,7 +55,7 @@ export default function Login() {
           minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF] mb-4"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#10b981] mb-4"
           placeholder="At least 8 characters"
         />
 
@@ -68,14 +68,14 @@ export default function Login() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-[#6C63FF] hover:bg-[#5a52d6] disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm"
+          className="w-full bg-[#10b981] hover:bg-[#059669] disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm"
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>
 
         <p className="text-sm text-gray-500 text-center mt-4">
           New to Saarthi?{" "}
-          <Link to="/signup" className="text-[#6C63FF] font-medium hover:underline">
+          <Link to="/signup" className="text-[#10b981] font-medium hover:underline">
             Create an account
           </Link>
         </p>

@@ -58,9 +58,11 @@ export interface RiskAssessment {
   application_id: number;
   risk_score: number;
   decision: string;            // "approve" | "review" | "reject"
-  model_version: string;
+  model_version: string;       // "v1" for XGBoost, "policy-gate-v1" for hard-rule rejections
   shap_values: Record<string, number> | null;
-  features_used: Record<string, number> | null;
+  // Mixed type: numeric model features + policy-explanation strings
+  // (policy_breached_rule, policy_reason, policy_remediation).
+  features_used: Record<string, number | string | null> | null;
   created_at: string;
 }
 

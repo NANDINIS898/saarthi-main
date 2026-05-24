@@ -6,7 +6,7 @@ import type {
   RiskAssessment, SanctionLetter,
 } from "../api/types";
 import { useAuth } from "../store/auth";
-import { AppHeader } from "../components/AppHeader";
+import { PageShell } from "../components/PageShell";
 import { RiskAssessmentCard } from "../components/RiskAssessmentCard";
 
 /**
@@ -183,10 +183,11 @@ export default function LoanFlow() {
 
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen">
-      <AppHeader subtitle={resumeId ? `Application #${resumeId}` : "New loan application"} />
-
-      <main className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+    <PageShell
+      title={resumeId ? `Application #${resumeId}` : "New loan application"}
+      subtitle="Apply, underwrite, negotiate, sanction"
+    >
+      <div className="max-w-3xl mx-auto space-y-4">
         {hydrating && (
           <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center text-sm text-gray-500">
             Loading application…
@@ -208,49 +209,53 @@ export default function LoanFlow() {
             <Field label="Loan amount (₹)" id="amount">
               <input id="amount" type="number" min={20000} max={5000000} required
                 value={form.loan_amount} onChange={fld("loan_amount")}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF]" />
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#10b981]" />
             </Field>
             <Field label="Purpose" id="purpose">
               <input id="purpose" required value={form.loan_purpose} onChange={fld("loan_purpose")}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF]" />
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#10b981]" />
             </Field>
             <Field label="Monthly income (₹)" id="income">
               <input id="income" type="number" min={8000} required
                 value={form.monthly_income} onChange={fld("monthly_income")}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF]" />
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#10b981]" />
             </Field>
             <Field label="Tenure" id="tenure">
               <select id="tenure" required value={form.tenure_preference_months} onChange={fld("tenure_preference_months")}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF]">
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#10b981]">
                 {[12, 24, 36, 48, 60, 72, 84].map((m) => <option key={m} value={m}>{m} months</option>)}
               </select>
             </Field>
             {error && <ErrorPill text={error} />}
             <button type="submit" disabled={busy}
-              className="w-full bg-[#6C63FF] hover:bg-[#5a52d6] disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm">
+              className="w-full bg-[#10b981] hover:bg-[#059669] disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm">
               {busy ? "Submitting…" : "Submit application"}
             </button>
           </form>
         )}
 
         {/* 2. Underwriting result */}
-        {stage === "underwriting" && (
+        {stage === "underwriting" && !risk && (
           <section className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
-            {!risk ? (
-              <>
-                <div className="inline-block w-10 h-10 border-4 border-[#6C63FF] border-t-transparent rounded-full animate-spin" />
-                <p className="text-base font-medium text-gray-900 mt-3">Running ML underwriting…</p>
-                <p className="text-xs text-gray-500 mt-1">XGBoost + SHAP · scoring your application</p>
-              </>
-            ) : (
-              <>
-                <p className="text-xs text-gray-500">Credit score</p>
-                <p className="text-4xl font-bold text-[#6C63FF] mt-1">{Math.round(risk.risk_score)}</p>
-                <Pill text={risk.decision} variant={risk.decision === "approve" ? "ok" : risk.decision === "reject" ? "bad" : "warn"} />
-                {error && <ErrorPill text={error} />}
-              </>
-            )}
+            <div className="inline-block w-10 h-10 border-4 border-[#10b981] border-t-transparent rounded-full animate-spin" />
+            <p className="text-base font-medium text-gray-900 mt-3">Running ML underwriting…</p>
+            <p className="text-xs text-gray-500 mt-1">XGBoost + SHAP · scoring your application</p>
+            {error && <ErrorPill text={error} className="mt-3" />}
           </section>
+        )}
+
+        {/* Rejected — show the full explanation card (policy or model). */}
+        {stage === "underwriting" && risk && risk.decision === "reject" && (
+          <>
+            <RiskAssessmentCard risk={risk} />
+            <button
+              onClick={() => navigate("/applications")}
+              className="w-full bg-white border border-gray-300 text-gray-700 rounded-lg py-2.5 text-sm hover:bg-gray-50"
+            >
+              Back to applications
+            </button>
+            {error && <ErrorPill text={error} />}
+          </>
         )}
 
         {/* 3. Risk assessment → offers → chat */}
@@ -291,7 +296,7 @@ export default function LoanFlow() {
                   <div key={i} className={`flex flex-col ${m.from === "user" ? "items-end" : "items-start"}`}>
                     <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
                       m.from === "user"
-                        ? "bg-[#6C63FF] text-white rounded-br-sm"
+                        ? "bg-[#10b981] text-white rounded-br-sm"
                         : "bg-gray-100 text-gray-800 rounded-bl-sm"
                     }`}>
                       {m.text}
@@ -314,10 +319,10 @@ export default function LoanFlow() {
                   onChange={(e) => setChatInput(e.target.value)}
                   disabled={busy}
                   placeholder="Type your message…"
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF]"
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#10b981]"
                 />
                 <button type="submit" disabled={busy || !chatInput.trim()}
-                  className="bg-[#6C63FF] hover:bg-[#5a52d6] disabled:opacity-50 text-white font-medium rounded-lg px-4 text-sm">
+                  className="bg-[#10b981] hover:bg-[#059669] disabled:opacity-50 text-white font-medium rounded-lg px-4 text-sm">
                   Send
                 </button>
               </form>
@@ -336,7 +341,7 @@ export default function LoanFlow() {
             </div>
             {sanction.signed_url ? (
               <a href={sanction.signed_url} target="_blank" rel="noreferrer"
-                className="mt-4 inline-block bg-[#6C63FF] hover:bg-[#5a52d6] text-white font-medium rounded-lg px-4 py-2 text-sm">
+                className="mt-4 inline-block bg-[#10b981] hover:bg-[#059669] text-white font-medium rounded-lg px-4 py-2 text-sm">
                 Open sanction PDF
               </a>
             ) : (
@@ -348,8 +353,8 @@ export default function LoanFlow() {
             </button>
           </section>
         )}
-      </main>
-    </div>
+      </div>
+    </PageShell>
   );
 }
 
@@ -368,11 +373,11 @@ function OfferCard({ offer, busy, onAccept }: { offer: LoanOffer; busy: boolean;
   return (
     <div className={`relative rounded-xl border p-4 transition-shadow ${
       isBest
-        ? "border-[#6C63FF] bg-gradient-to-br from-[#f7f6ff] to-white shadow-sm"
+        ? "border-[#10b981] bg-gradient-to-br from-[#f0fdf4] to-white shadow-sm"
         : "border-gray-200 hover:border-gray-300"
     }`}>
       {isBest && !offer.is_negotiated && (
-        <span className="absolute -top-2 left-3 text-[10px] font-bold tracking-wider uppercase bg-[#6C63FF] text-white px-2 py-0.5 rounded">
+        <span className="absolute -top-2 left-3 text-[10px] font-bold tracking-wider uppercase bg-[#10b981] text-white px-2 py-0.5 rounded">
           Recommended
         </span>
       )}
@@ -391,7 +396,7 @@ function OfferCard({ offer, busy, onAccept }: { offer: LoanOffer; busy: boolean;
         </div>
         <div className="text-right">
           <p className="text-[10px] font-semibold text-gray-400 tracking-wider uppercase">Monthly EMI</p>
-          <p className="text-lg font-bold text-[#6C63FF] leading-tight">
+          <p className="text-lg font-bold text-[#10b981] leading-tight">
             ₹ {offer.emi.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
           </p>
         </div>
@@ -418,8 +423,8 @@ function OfferCard({ offer, busy, onAccept }: { offer: LoanOffer; busy: boolean;
       <button onClick={onAccept} disabled={busy}
         className={`w-full font-medium rounded-lg py-2.5 text-sm transition-colors disabled:opacity-50 ${
           isBest
-            ? "bg-[#6C63FF] hover:bg-[#5a52d6] text-white"
-            : "bg-white border border-[#6C63FF] text-[#6C63FF] hover:bg-[#f0f0f8]"
+            ? "bg-[#10b981] hover:bg-[#059669] text-white"
+            : "bg-white border border-[#10b981] text-[#10b981] hover:bg-[#ecfdf5]"
         }`}>
         {busy ? "Processing…" : "Accept this offer"}
       </button>
@@ -437,7 +442,7 @@ function InlineOfferCard({
 }) {
   return (
     <div className={`mt-2 max-w-[85%] rounded-xl border p-3 ${
-      acceptingHint ? "border-emerald-400 bg-emerald-50" : "border-[#6C63FF] bg-[#f7f6ff]"
+      acceptingHint ? "border-emerald-400 bg-emerald-50" : "border-[#10b981] bg-[#f0fdf4]"
     }`}>
       <div className="flex items-center justify-between mb-1.5">
         <p className="text-sm font-semibold text-gray-900">
@@ -445,7 +450,7 @@ function InlineOfferCard({
         </p>
         <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
           offer.is_negotiated
-            ? "bg-[#f0f0f8] text-[#6C63FF]"
+            ? "bg-[#ecfdf5] text-[#10b981]"
             : "bg-gray-100 text-gray-600"
         }`}>
           {offer.is_negotiated ? `round ${offer.negotiation_round}` : "current"}
@@ -462,26 +467,12 @@ function InlineOfferCard({
         className={`w-full font-medium rounded-lg py-1.5 text-xs disabled:opacity-50 ${
           acceptingHint
             ? "bg-emerald-500 hover:bg-emerald-600 text-white"
-            : "bg-[#6C63FF] hover:bg-[#5a52d6] text-white"
+            : "bg-[#10b981] hover:bg-[#059669] text-white"
         }`}
       >
         {busy ? "Processing…" : acceptingHint ? "✓ Confirm acceptance" : "Accept this offer"}
       </button>
     </div>
-  );
-}
-
-function Pill({ text, variant }: { text: string; variant: "ok" | "bad" | "warn" | "info" }) {
-  const colors = {
-    ok:   "bg-emerald-100 text-emerald-700",
-    bad:  "bg-red-100 text-red-700",
-    warn: "bg-amber-100 text-amber-700",
-    info: "bg-[#f0f0f8] text-[#6C63FF]",
-  }[variant];
-  return (
-    <span className={`inline-block ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${colors}`}>
-      {text}
-    </span>
   );
 }
 

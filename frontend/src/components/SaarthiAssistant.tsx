@@ -4,6 +4,7 @@ import { api, apiErrorMessage } from "../api/client";
 import type {
   AssistantChatMessage, AssistantChatResponse, TranscribeResponse,
 } from "../api/types";
+import { useChat } from "../store/chat";
 
 /**
  * Floating Saarthi assistant — a FAB in the bottom-right corner that
@@ -30,14 +31,8 @@ export function SaarthiAssistant() {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<AssistantChatResponse["action_hint"]>(null);
-  const [history, setHistory] = useState<AssistantChatMessage[]>([
-    {
-      role: "assistant",
-      content:
-        "Hi! I'm Saarthi. Ask me about your loan, your credit score, " +
-        "or what to do next. Tap the mic to talk.",
-    },
-  ]);
+  const history = useChat((s) => s.history);
+  const appendMsg = useChat((s) => s.append);
 
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -69,7 +64,7 @@ export function SaarthiAssistant() {
     setError(null);
     setHint(null);
     const userMsg: AssistantChatMessage = { role: "user", content: trimmed };
-    setHistory((h) => [...h, userMsg]);
+    appendMsg(userMsg);
     setInput("");
     setBusy(true);
     try {
@@ -78,12 +73,12 @@ export function SaarthiAssistant() {
         application_id: applicationIdInUrl,
         history: history.slice(-10),
       });
-      setHistory((h) => [...h, { role: "assistant", content: data.reply }]);
+      appendMsg({ role: "assistant", content: data.reply });
       setHint(data.action_hint);
     } catch (err) {
       const msg = apiErrorMessage(err);
       setError(msg);
-      setHistory((h) => [...h, { role: "assistant", content: `Sorry — ${msg}` }]);
+      appendMsg({ role: "assistant", content: `Sorry — ${msg}` });
     } finally {
       setBusy(false);
     }
@@ -178,7 +173,7 @@ export function SaarthiAssistant() {
       <button
         onClick={() => setOpen(true)}
         aria-label="Open Saarthi assistant"
-        className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full bg-[#6C63FF] hover:bg-[#5a52d6] text-white shadow-lg flex items-center justify-center"
+        className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full bg-[#10b981] hover:bg-[#059669] text-white shadow-lg flex items-center justify-center"
       >
         <MicIcon />
       </button>
@@ -188,7 +183,7 @@ export function SaarthiAssistant() {
   return (
     <div className="fixed bottom-5 right-5 z-50 w-[min(380px,calc(100vw-2rem))] max-h-[min(560px,calc(100vh-2rem))] bg-white border border-gray-200 rounded-2xl shadow-xl flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-[#6C63FF] text-white px-4 py-3 flex items-center justify-between">
+      <div className="bg-[#10b981] text-white px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center">
             <MicIcon small />
@@ -206,12 +201,12 @@ export function SaarthiAssistant() {
       </div>
 
       {/* Chat scroll area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2 bg-[#fafafd]">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2 bg-[#f9fafb]">
         {history.map((m, i) => (
           <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
               m.role === "user"
-                ? "bg-[#6C63FF] text-white rounded-br-sm"
+                ? "bg-[#10b981] text-white rounded-br-sm"
                 : "bg-white border border-gray-200 text-gray-800 rounded-bl-sm"
             }`}>
               {m.content}
@@ -229,7 +224,7 @@ export function SaarthiAssistant() {
           <div className="flex justify-center">
             <button
               onClick={followHint}
-              className="bg-[#f0f0f8] hover:bg-[#e5e3f7] text-[#6C63FF] text-xs font-medium rounded-full px-3 py-1.5"
+              className="bg-[#ecfdf5] hover:bg-[#d1fae5] text-[#10b981] text-xs font-medium rounded-full px-3 py-1.5"
             >
               {hint === "go_kyc" && "→ Open KYC session"}
               {hint === "go_negotiate" && "→ Open negotiation"}
@@ -258,7 +253,7 @@ export function SaarthiAssistant() {
           onTouchEnd={stopAndSend}
           disabled={busy}
           className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-            recording ? "bg-red-500 text-white animate-pulse" : "bg-[#f0f0f8] text-[#6C63FF] hover:bg-[#e5e3f7]"
+            recording ? "bg-red-500 text-white animate-pulse" : "bg-[#ecfdf5] text-[#10b981] hover:bg-[#d1fae5]"
           } disabled:opacity-50`}
           aria-label={recording ? "Release to send" : "Hold to talk"}
           title={recording ? "Release to send" : "Hold to talk"}
@@ -270,12 +265,12 @@ export function SaarthiAssistant() {
           onChange={(e) => setInput(e.target.value)}
           disabled={busy || recording}
           placeholder={recording ? "Listening…" : "Type or hold the mic…"}
-          className="flex-1 border border-gray-200 rounded-full px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF]"
+          className="flex-1 border border-gray-200 rounded-full px-3 py-2 text-sm focus:outline-none focus:border-[#10b981]"
         />
         <button
           type="submit"
           disabled={busy || !input.trim()}
-          className="bg-[#6C63FF] hover:bg-[#5a52d6] disabled:opacity-40 text-white text-sm rounded-full px-3 py-2 flex-shrink-0"
+          className="bg-[#10b981] hover:bg-[#059669] disabled:opacity-40 text-white text-sm rounded-full px-3 py-2 flex-shrink-0"
         >
           Send
         </button>

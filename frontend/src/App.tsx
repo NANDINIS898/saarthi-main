@@ -1,11 +1,13 @@
 import { useEffect } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-import Dashboard from "./pages/Dashboard";
+import Assistant from "./pages/Assistant";
 import KycSession from "./pages/KycSession";
 import LoanFlow from "./pages/LoanFlow";
 import Applications from "./pages/Applications";
+import History from "./pages/History";
+import Settings from "./pages/Settings";
 import { SaarthiAssistant } from "./components/SaarthiAssistant";
 import { useAuth } from "./store/auth";
 
@@ -15,7 +17,6 @@ export default function App() {
   const user = useAuth((s) => s.user);
   const loading = useAuth((s) => s.loading);
 
-  // On boot: if a token is in localStorage, fetch the matching user.
   useEffect(() => {
     init();
   }, [init]);
@@ -24,84 +25,91 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      {/* Floating Saarthi assistant — global, only when authenticated. */}
-      {authenticated && <SaarthiAssistant />}
+      {authenticated && <FloatingAssistantGated />}
       <Routes>
         <Route
           path="/login"
-          element={authenticated ? <Navigate to="/dashboard" replace /> : <Login />}
+          element={authenticated ? <Navigate to="/assistant" replace /> : <Login />}
         />
         <Route
           path="/signup"
-          element={authenticated ? <Navigate to="/dashboard" replace /> : <Signup />}
+          element={authenticated ? <Navigate to="/assistant" replace /> : <Signup />}
         />
         <Route
-          path="/dashboard"
+          path="/assistant"
           element={
-            loading ? (
-              <FullScreenLoading />
-            ) : authenticated ? (
-              <Dashboard />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            loading ? <FullScreenLoading />
+              : authenticated ? <Assistant />
+              : <Navigate to="/login" replace />
           }
         />
+        {/* Legacy /dashboard → /assistant for backwards compat */}
+        <Route path="/dashboard" element={<Navigate to="/assistant" replace />} />
         <Route
           path="/kyc/session"
           element={
-            loading ? (
-              <FullScreenLoading />
-            ) : authenticated ? (
-              <KycSession />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            loading ? <FullScreenLoading />
+              : authenticated ? <KycSession />
+              : <Navigate to="/login" replace />
           }
         />
         <Route
           path="/loan"
           element={
-            loading ? (
-              <FullScreenLoading />
-            ) : authenticated ? (
-              <LoanFlow />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            loading ? <FullScreenLoading />
+              : authenticated ? <LoanFlow />
+              : <Navigate to="/login" replace />
           }
         />
         <Route
           path="/loan/:id"
           element={
-            loading ? (
-              <FullScreenLoading />
-            ) : authenticated ? (
-              <LoanFlow />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            loading ? <FullScreenLoading />
+              : authenticated ? <LoanFlow />
+              : <Navigate to="/login" replace />
           }
         />
         <Route
           path="/applications"
           element={
-            loading ? (
-              <FullScreenLoading />
-            ) : authenticated ? (
-              <Applications />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            loading ? <FullScreenLoading />
+              : authenticated ? <Applications />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/history"
+          element={
+            loading ? <FullScreenLoading />
+              : authenticated ? <History />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            loading ? <FullScreenLoading />
+              : authenticated ? <Settings />
+              : <Navigate to="/login" replace />
           }
         />
         <Route
           path="*"
-          element={<Navigate to={authenticated ? "/dashboard" : "/login"} replace />}
+          element={<Navigate to={authenticated ? "/assistant" : "/login"} replace />}
         />
       </Routes>
     </BrowserRouter>
   );
+}
+
+/**
+ * Hide the floating assistant on the dedicated /assistant page — there it
+ * would be redundant with the inline chat.
+ */
+function FloatingAssistantGated() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith("/assistant")) return null;
+  return <SaarthiAssistant />;
 }
 
 function FullScreenLoading() {

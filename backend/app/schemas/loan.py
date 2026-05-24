@@ -46,7 +46,9 @@ class RiskAssessmentOut(BaseModel):
     decision: str
     model_version: str
     shap_values: Optional[dict[str, float]] = None
-    features_used: Optional[dict[str, float]] = None
+    # features_used carries both numeric model features AND policy-explanation
+    # strings (policy_breached_rule, policy_reason). Hence Any, not float.
+    features_used: Optional[dict[str, Any]] = None
     created_at: datetime
 
     # "model_version" collides with Pydantic's protected `model_` namespace.
