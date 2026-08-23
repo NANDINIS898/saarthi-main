@@ -12,6 +12,7 @@ Two responsibilities:
 This is NOT the negotiation agent — negotiation is a separate route that
 actually mutates state. The assistant only *guides* and explains; it suggests
 when to switch to /loan/{id} to take action.
+
 """
 
 from __future__ import annotations

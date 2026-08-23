@@ -1,4 +1,3 @@
-
 """
 Auth service: signup, login, identity resolution from JWT.
 
@@ -16,7 +15,7 @@ from jose import JWTError
 
 from app.config import settings
 from app.database.models import User
-from app.repositories.auth_repository import AuthRepository
+from app.repositories.user_repository import UserRepository
 from app.schemas.auth import SignupRequest, TokenResponse
 from app.schemas.user import UserCreate
 from app.services.user_service import UserService
@@ -29,9 +28,9 @@ class AuthService:
 
     def __init__(
         self,
-        auth_repository: AuthRepository,
+        user_repository: UserRepository,
     ):
-        self.auth_repository = auth_repository
+        self.user_repository = user_repository
 
     # ──────────────────────────────────────────────────────────────────────
     # SIGNUP
@@ -49,7 +48,7 @@ class AuthService:
         """
 
         user = UserService.create_user(
-            self.auth_repository,
+            self.user_repository,
             UserCreate(
                 full_name=payload.full_name,
                 email=payload.email,
@@ -77,7 +76,7 @@ class AuthService:
         Verify credentials and return an access token.
         """
 
-        user = self.auth_repository.get_by_email(email)
+        user = self.user_repository.get_by_email(email)
 
         # Same generic error for:
         # - user does not exist
@@ -178,7 +177,7 @@ class AuthService:
         # Load user through repository
         # ──────────────────────────────────────────────────────────────────
 
-        user = self.auth_repository.get_by_id(
+        user = self.user_repository.get_by_id(
             user_id
         )
 
@@ -197,3 +196,4 @@ class AuthService:
             )
 
         return user
+

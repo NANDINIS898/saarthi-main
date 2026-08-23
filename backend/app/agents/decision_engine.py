@@ -1,5 +1,5 @@
 """
-Decision Intelligence Engine — the main orchestrator.
+Decision Intelligence Engine , the main orchestrator.
 
 Responsibilities:
   1. Generate 3 personalized loan offers from a credit score using risk-tiered pricing.
