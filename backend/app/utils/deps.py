@@ -1,39 +1,74 @@
 """
-Shared FastAPI dependencies.
+FastAPI dependency injection.
 
-Routes use these to inject the current authenticated user (or current admin)
-without re-implementing token parsing each time.
+Builds the dependency chain:
+
+Database Session
+    ↓
+UserRepository
+    ↓
+UserService
+    ↓
+AuthService
 """
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from app.database.models import User
 
 from app.database.connection import get_db
-from app.database.models import User
+from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
+from app.services.user_service import UserService
 
 
-# tokenUrl is what Swagger uses for the "Authorize" button.
-# Auto-error=False lets us return our own clean 401 with WWW-Authenticate header.
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=True)
+# ─────────────────────────────────────────────
+# JWT TOKEN DEPENDENCY
+# ─────────────────────────────────────────────
 
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/auth/login"
+)
 
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
+# =============================================================
+# USER REPOSITORY
+# =============================================================
+
+def get_user_repository(
     db: Session = Depends(get_db),
-) -> User:
-    """Resolve the bearer token to a User row. Raises 401 if invalid."""
-    return AuthService.user_from_token(db, token)
+) -> UserRepository:
+
+    return UserRepository(db)
 
 
-def get_current_admin(
-    user: User = Depends(get_current_user),
-) -> User:
-    """Stack on top of `get_current_user` to gate admin-only routes."""
-    if not user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required.",
-        )
-    return user
+# =============================================================
+# USER SERVICE
+# =============================================================
+
+def get_user_service(
+    user_repository: UserRepository = Depends(
+        get_user_repository
+    ),
+) -> UserService:
+
+    return UserService(
+        user_repository
+    )
+
+
+# =============================================================
+# AUTH SERVICE
+# =============================================================
+
+def get_auth_service(
+    user_service: UserService = Depends(
+        get_user_service
+    ),
+) -> AuthService:
+
+    return AuthService(
+        user_service
+    )
+def get_current_user( token: str = Depends(oauth2_scheme), auth_service: AuthService = Depends( get_auth_service ), ) -> User:
+    return auth_service.user_from_token( token )

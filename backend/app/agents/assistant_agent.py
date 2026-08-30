@@ -33,7 +33,7 @@ from app.schemas.assistant import ChatMessage
 from app.utils.logger import logger
 
 
-CHAT_MODEL = "llama-3.3-70b-versatile"
+CHAT_MODEL = "openai/gpt-oss-20b"
 STT_MODEL  = "whisper-large-v3-turbo"
 
 

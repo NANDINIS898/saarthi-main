@@ -11,12 +11,20 @@ from typing import Any
 from app.ml.kyc.groq_vision import call_vision_json
 from app.utils.logger import logger
 
+_OCR_SYSTEM = ("You are an OCR and document verification system for Indian Aadhaar cards. "
+"Inspect the provided image carefully. "
+"Your task is to extract information only from the image. "
+"If the document does not appear to be an Aadhaar card: "
+" - Do not invent Aadhaar information. "
+" - Return null for Aadhaar-specific fields. "
+" - Set is_readable to false. "
+" - Explain the issue briefly in notes. "
+"If a field is not visible or cannot be read confidently, return null."
+"Return ONLY a valid JSON object."
+"Do not return markdown."
+"Do not return ```json." 
+"Do not include explanations outside the JSON object. ")
 
-_OCR_SYSTEM = (
-    "You are an OCR system that reads Indian Aadhaar cards. "
-    "Reply with ONLY a JSON object. Never include prose. "
-    "If a field is not visible or you are not confident, set it to null."
-)
 
 _OCR_USER = """Extract these fields from the Aadhaar image:
 

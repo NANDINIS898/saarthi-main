@@ -1,14 +1,23 @@
-
 """
-Auth service: signup, login, identity resolution from JWT.
+Authentication service.
 
-Routes call into this layer.
+Responsible for:
+- signup
+- login
+- JWT authentication
+- resolving the current user
 
-This layer is responsible for authentication business logic
-and delegates database operations to UserRepository.
+AuthService does NOT perform database queries directly.
 
-The service does NOT directly know about SQLAlchemy Session
-or database queries.
+Dependency direction:
+
+AuthService
+    ↓
+UserService
+    ↓
+UserRepository
+    ↓
+Database
 """
 
 from fastapi import HTTPException, status
@@ -16,7 +25,6 @@ from jose import JWTError
 
 from app.config import settings
 from app.database.models import User
-from app.repositories.auth_repository import AuthRepository
 from app.schemas.auth import SignupRequest, TokenResponse
 from app.schemas.user import UserCreate
 from app.services.user_service import UserService
@@ -29,33 +37,26 @@ class AuthService:
 
     def __init__(
         self,
-        auth_repository: AuthRepository,
+        user_service: UserService,
     ):
-        self.auth_repository = auth_repository
+        self.user_service = user_service
 
-    # ──────────────────────────────────────────────────────────────────────
+    # =========================================================
     # SIGNUP
-    # ──────────────────────────────────────────────────────────────────────
+    # =========================================================
 
     def signup(
         self,
         payload: SignupRequest,
     ) -> User:
-        """
-        Create a new user.
 
-        UserService handles user creation/business rules.
-        UserRepository handles database persistence.
-        """
-
-        user = UserService.create_user(
-            self.auth_repository,
+        user = self.user_service.create_user(
             UserCreate(
                 full_name=payload.full_name,
                 email=payload.email,
                 phone=payload.phone,
                 password=payload.password,
-            ),
+            )
         )
 
         logger.info(
@@ -64,26 +65,21 @@ class AuthService:
 
         return user
 
-    # ──────────────────────────────────────────────────────────────────────
+    # =========================================================
     # LOGIN
-    # ──────────────────────────────────────────────────────────────────────
+    # =========================================================
 
     def login(
         self,
         email: str,
         password: str,
     ) -> TokenResponse:
-        """
-        Verify credentials and return an access token.
-        """
 
-        user = self.auth_repository.get_by_email(email)
+        user = self.user_service.get_user_by_email(
+            email
+        )
 
-        # Same generic error for:
-        # - user does not exist
-        # - password is incorrect
-        #
-        # This prevents leaking which emails are registered.
+        # Don't reveal whether the email exists.
         if (
             not user
             or not verify_password(
@@ -96,14 +92,20 @@ class AuthService:
                 detail="Invalid email or password.",
             )
 
-        # Account status is business logic.
+        # -----------------------------------------------------
+        # Disabled account
+        # -----------------------------------------------------
+
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Account is disabled.",
             )
 
-        # JWT generation belongs to authentication service.
+        # -----------------------------------------------------
+        # Create JWT
+        # -----------------------------------------------------
+
         token = create_access_token(
             subject=user.id
         )
@@ -119,21 +121,16 @@ class AuthService:
             ),
         )
 
-    # ──────────────────────────────────────────────────────────────────────
-    # JWT → USER
-    # ──────────────────────────────────────────────────────────────────────
+    # =========================================================
+    # USER FROM JWT
+    # =========================================================
 
     def user_from_token(
         self,
         token: str,
     ) -> User:
-        """
-        Decode a bearer token and return the matching user.
 
-        Raises 401 for invalid/malformed tokens or missing users.
-        """
-
-        creds_exc = HTTPException(
+        credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials.",
             headers={
@@ -141,9 +138,9 @@ class AuthService:
             },
         )
 
-        # ──────────────────────────────────────────────────────────────────
-        # Decode JWT
-        # ──────────────────────────────────────────────────────────────────
+        # -----------------------------------------------------
+        # Decode token
+        # -----------------------------------------------------
 
         try:
 
@@ -155,16 +152,16 @@ class AuthService:
                 f"JWT decode failed: {e}"
             )
 
-            raise creds_exc
+            raise credentials_exception
 
-        # ──────────────────────────────────────────────────────────────────
-        # Extract subject
-        # ──────────────────────────────────────────────────────────────────
+        # -----------------------------------------------------
+        # Get subject
+        # -----------------------------------------------------
 
         sub = payload.get("sub")
 
         if not sub:
-            raise creds_exc
+            raise credentials_exception
 
         try:
 
@@ -172,22 +169,22 @@ class AuthService:
 
         except (TypeError, ValueError):
 
-            raise creds_exc
+            raise credentials_exception
 
-        # ──────────────────────────────────────────────────────────────────
-        # Load user through repository
-        # ──────────────────────────────────────────────────────────────────
+        # -----------------------------------------------------
+        # Get user through service
+        # -----------------------------------------------------
 
-        user = self.auth_repository.get_by_id(
+        user = self.user_service.get_user_by_id(
             user_id
         )
 
         if not user:
-            raise creds_exc
+            raise credentials_exception
 
-        # ──────────────────────────────────────────────────────────────────
-        # Account status
-        # ──────────────────────────────────────────────────────────────────
+        # -----------------------------------------------------
+        # Check account
+        # -----------------------------------------------------
 
         if not user.is_active:
 

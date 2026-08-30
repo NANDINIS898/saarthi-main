@@ -1,103 +1,119 @@
+"""
+User repository.
 
+Responsible only for database access related to User.
 
-from fastapi import HTTPException, status
-from sqlalchemy.exc import IntegrityError
+The repository knows about SQLAlchemy.
+Services do not.
+"""
+
 from sqlalchemy.orm import Session
-
+from fastapi import HTTPException, status
 from app.database.models import User
-from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserCreate
-from app.utils.logger import logger
 from app.utils.security import hash_password
+from app.repositories.user_repository import UserRepository
 
 
 class UserService:
 
-    @staticmethod
-    def create_user(
-        db: Session,
-        user_data: UserCreate, 
-    ) -> User:
+    def __init__(self, user_repository: UserRepository):
+        self.user_repository = user_repository
 
-        repository = UserRepository(db)
 
-        # Business rule:
-        # Email must be unique
-        existing = repository.get_by_email(user_data.email)
+    # ─────────────────────────────────────────────
+    # GET USER BY ID
+    # ─────────────────────────────────────────────
+    def create_user(self, payload: UserCreate) -> User:
+        """
+        Create a new user.
 
-        if existing:
+        Business logic:
+        - check email uniqueness
+        - check phone uniqueness
+        - hash password
+        - create user
+
+        Database operations are delegated to UserRepository.
+        """
+
+        # -----------------------------------------------------
+        # Check duplicate email
+        # -----------------------------------------------------
+
+        existing_email = self.user_repository.get_by_email(
+            payload.email
+        )
+
+        if existing_email:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A user with this email already exists.",
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered.",
             )
+
+        # -----------------------------------------------------
+        # Check duplicate phone
+        # -----------------------------------------------------
+
+        if payload.phone:
+
+            existing_phone = self.user_repository.get_by_phone(
+                payload.phone
+            )
+
+            if existing_phone:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Phone number already registered.",
+                )
+
+        # -----------------------------------------------------
+        # Hash password
+        # -----------------------------------------------------
+
+        hashed_password = hash_password(
+            payload.password
+        )
+
+        # -----------------------------------------------------
+        # Build domain/model object
+        # -----------------------------------------------------
 
         user = User(
-            full_name=user_data.full_name,
-            email=user_data.email,
-            phone=user_data.phone,
-            hashed_password=hash_password(user_data.password),
+            full_name=payload.full_name,
+            email=payload.email,
+            phone=payload.phone,
+            hashed_password=hashed_password,
+            is_active=True,
+            is_verified=False,
+            is_admin=False,
+            kyc_status="pending",
         )
 
-        try:
-            user = repository.create(user)
+        # -----------------------------------------------------
+        # Persist through repository
+        # -----------------------------------------------------
 
-        except IntegrityError as e:
-            db.rollback()
+        return self.user_repository.create(user)
 
-            logger.error(
-                f"IntegrityError creating user: {e}"
-            )
+     # =========================================================
+    # GET USER BY EMAIL
+    # =========================================================
 
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User could not be created "
-                       "(duplicate email or phone).",
-            )
-
-        logger.info(
-            f"Created user id={user.id} email={user.email}"
-        )
-
-        return user
-
-    @staticmethod
-    def get_user_by_id(
-        db: Session,
-        user_id: int,
-    ) -> User:
-
-        repository = UserRepository(db)
-
-        user = repository.get_by_id(user_id)
-
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User {user_id} not found.",
-            )
-
-        return user
-
-    @staticmethod
     def get_user_by_email(
-        db: Session,
+        self,
         email: str,
     ) -> User | None:
 
-        repository = UserRepository(db)
+        return self.user_repository.get_by_email(email)
 
-        return repository.get_by_email(email)
+    # =========================================================
+    # GET USER BY ID
+    # =========================================================
 
-    @staticmethod
-    def list_users(
-        db: Session,
-        skip: int = 0,
-        limit: int = 50,
-    ) -> list[User]:
+    def get_user_by_id(
+        self,
+        user_id: int,
+    ) -> User | None:
 
-        repository = UserRepository(db)
-
-        return repository.list_users(
-            skip=skip,
-            limit=limit,
-        )
+        return self.user_repository.get_by_id(user_id)

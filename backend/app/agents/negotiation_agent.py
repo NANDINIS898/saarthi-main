@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -32,7 +33,7 @@ from app.database.models import AgentDecision, LoanApplication, LoanOffer
 from app.utils.logger import logger
 
 
-NEGOTIATION_MODEL = "llama-3.3-70b-versatile"
+NEGOTIATION_MODEL = "openai/gpt-oss-120b"
 
 
 _SYSTEM = """You are Saarthi's loan negotiation agent. You negotiate with a borrower
@@ -168,6 +169,7 @@ class NegotiationAgent:
 
         client = _client()
         try:
+            time.sleep(30)
             resp = client.chat.completions.create(
                 model=NEGOTIATION_MODEL,
                 messages=[{"role": "system", "content": _SYSTEM},
@@ -202,10 +204,10 @@ class NegotiationAgent:
                 f"Negotiation agent returned invalid JSON: {e}",
             )
 
-        # Server-side guardrails — we don't trust the model's math/limits.
+        # Server-side guardrails :  we don't trust the model's math/limits.
         proposal = _enforce(proposal, constraints, current, max_amount)
 
-        # If the borrower is signalling acceptance, don't mint a new offer row —
+        # If the borrower is signalling acceptance, don't mint a new offer row 
         # just echo the current offer back with the acceptance flag set so the
         # UI can show a "Confirm" CTA pointing at the existing offer id.
         if proposal["user_accepting"]:

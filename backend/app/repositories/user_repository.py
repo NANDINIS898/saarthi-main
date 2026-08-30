@@ -1,3 +1,14 @@
+"""
+User repository.
+
+Responsible ONLY for database access related to User.
+
+No business logic.
+No password hashing.
+No JWT logic.
+No HTTPException.
+"""
+
 from sqlalchemy.orm import Session
 
 from app.database.models import User
@@ -8,12 +19,9 @@ class UserRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_by_id(self, user_id: int) -> User | None:
-        return (
-            self.db.query(User)
-            .filter(User.id == user_id)
-            .first()
-        )
+    # ---------------------------------------------------------
+    # GET BY EMAIL
+    # ---------------------------------------------------------
 
     def get_by_email(self, email: str) -> User | None:
         return (
@@ -22,6 +30,10 @@ class UserRepository:
             .first()
         )
 
+    # ---------------------------------------------------------
+    # GET BY PHONE
+    # ---------------------------------------------------------
+
     def get_by_phone(self, phone: str) -> User | None:
         return (
             self.db.query(User)
@@ -29,17 +41,20 @@ class UserRepository:
             .first()
         )
 
-    def list_users(
-        self,
-        skip: int = 0,
-        limit: int = 50,
-    ) -> list[User]:
+    # ---------------------------------------------------------
+    # GET BY ID
+    # ---------------------------------------------------------
+
+    def get_by_id(self, user_id: int) -> User | None:
         return (
             self.db.query(User)
-            .offset(skip)
-            .limit(limit)
-            .all()
+            .filter(User.id == user_id)
+            .first()
         )
+
+    # ---------------------------------------------------------
+    # CREATE
+    # ---------------------------------------------------------
 
     def create(self, user: User) -> User:
         self.db.add(user)
