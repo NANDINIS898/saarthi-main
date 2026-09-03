@@ -261,6 +261,11 @@ saarthi-main/
 │   │   │   ├── connection.py          # SQLAlchemy engine, get_db dependency
 │   │   │   └── models.py              # 8 ORM tables
 │   │   ├── routes/                    # FastAPI routers
+|   |   |── repositories/              # DATA ACCESS LAYER 
+│   │   │   ├── user_repository.py
+│   │   │   ├── loan_repository.py
+│   │   │   
+│   │   │   
 │   │   ├── schemas/                   # Pydantic request/response models
 │   │   ├── services/                  # business logic
 │   │   ├── agents/                    # AI agents
