@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, apiErrorMessage } from "../api/client";
 import type {
@@ -31,6 +31,7 @@ export default function LoanFlow() {
   const [risk, setRisk] = useState<RiskAssessment | null>(null);
   const [offers, setOffers] = useState<LoanOffer[]>([]);
   const [sanction, setSanction] = useState<SanctionLetter | null>(null);
+  const acceptKeys = useRef<Record<string, string>>({});
   // Chat entries can carry an inline offer card (when agent counters) and an
   // acceptingHint flag (when the LLM thinks the user just said yes).
   type ChatEntry = {
@@ -166,21 +167,59 @@ export default function LoanFlow() {
   // ─── Accept + sanction ───────────────────────────────────────────────────
   async function accept(offer: LoanOffer) {
     if (!application) return;
+
+    const operationId = `${application.id}:${offer.id}`;
+
+    // IMPORTANT:
+    // Generate the idempotency key only once for this logical operation.
+    // Retries and duplicate clicks for the same offer reuse this key.
+    if (!acceptKeys.current[operationId]) {
+      acceptKeys.current[operationId] =
+        `accept-${application.id}-${offer.id}`;
+    }
+
+    const idempotencyKey = acceptKeys.current[operationId];
+
     setBusy(true);
     setError(null);
+
+    console.log("[ACCEPT] Sending request", {
+      applicationId: application.id,
+      offerId: offer.id,
+      idempotencyKey,
+    });
+
     try {
       const { data } = await api.post<SanctionLetter>(
         `/applications/${application.id}/offers/${offer.id}/accept`,
+        undefined,
+        {
+          headers: {
+            "Idempotency-Key": idempotencyKey,
+          },
+        }
       );
+
+      console.log("[ACCEPT] Success", {
+        idempotencyKey,
+        sanctionId: data.id,
+        refNo: data.ref_no,
+      });
+
       setSanction(data);
       setStage("sanctioned");
     } catch (err) {
+      console.error("[ACCEPT] Failed", {
+        idempotencyKey,
+        error: err,
+      });
+
       setError(apiErrorMessage(err));
     } finally {
       setBusy(false);
     }
   }
-
+  
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
     <PageShell

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import io
 from typing import Any
+import time
 
 from fastapi import HTTPException, status
 from groq import Groq
@@ -43,7 +44,7 @@ def _client() -> Groq:
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "GROQ_API_KEY is not configured.",
         )
-    return Groq(api_key=settings.GROQ_API_KEY)
+    return Groq(api_key=settings.GROQ_API_KEY, timeout= 3.0,)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -208,12 +209,16 @@ def chat(
     messages.append({"role": "user", "content": message})
 
     client = _client()
+   
+    
     try:
+        
         resp = client.chat.completions.create(
             model=CHAT_MODEL,
             messages=messages,
             temperature=0.4,
             max_tokens=400,
+            
         )
     except Exception as e:
         logger.exception("Assistant chat failed")

@@ -121,13 +121,36 @@ def _client() -> Groq:
             "GROQ_API_KEY is not configured.",
         )
     return Groq(api_key=settings.GROQ_API_KEY)
-
+MAX_NEGOTIATION_ROUNDS = 5
 
 class NegotiationAgent:
     @staticmethod
-    def negotiate(
-        db: Session, application: LoanApplication, user_message: str
-    ) -> dict[str, Any]:
+    def negotiate(db: Session, application: LoanApplication, user_message: str) -> dict[str, Any]:
+        constraints = DecisionEngine.constraints(db, application)
+        current = _current_best_offer(db, application.id)
+        if not current:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "No offers yet — generate offers before negotiating.")
+
+        current_round = current.negotiation_round or 0
+        if current_round >= MAX_NEGOTIATION_ROUNDS:
+            db.add(AgentDecision(
+                application_id=application.id,
+                agent_name="negotiation",
+                decision="saturation_reached",
+                reasoning=f"Round {current_round} — negotiation cap hit, returning final offer.",
+                llm_trace={"user_message": user_message, "round": current_round},
+            ))
+            db.commit()
+            return {
+                "offer": current,
+                "agent_message": "This is the best offer I'm able to give you — we've reached the limit on how far this can be negotiated. You're welcome to accept it or apply again later if your situation changes.",
+                "concession": "none",
+                "round": current_round,
+                "dti": emi_to_income_ratio(current.emi, constraints["monthly_income"]),
+                "user_accepting": False,
+            }
+    
+    
         """
         One round of negotiation.
 
@@ -169,7 +192,7 @@ class NegotiationAgent:
 
         client = _client()
         try:
-            time.sleep(30)
+        
             resp = client.chat.completions.create(
                 model=NEGOTIATION_MODEL,
                 messages=[{"role": "system", "content": _SYSTEM},
@@ -177,6 +200,7 @@ class NegotiationAgent:
                 temperature=0.3,
                 max_tokens=500,
                 response_format={"type": "json_object"},
+                timeout=1.0,
             )
         except Exception as e:
             # Could be: invalid API key, rate limit, deprecated model, network error.

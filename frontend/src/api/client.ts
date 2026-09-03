@@ -1,4 +1,5 @@
 import axios, { AxiosError } from "axios";
+import { useChat } from "../store/chat";
 
 /**
  * Single shared axios instance. We use a relative baseURL because vite.config.ts
@@ -6,6 +7,7 @@ import axios, { AxiosError } from "axios";
  */
 export const api = axios.create({
   baseURL: "/",
+  timeout: 20000,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -18,12 +20,15 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 401 → drop the token so the user is forced back to login.
+// 401 → drop the token and wipe any conversation state so a session that
+// ended (expired, revoked, invalid) never leaves chat history sitting
+// around for the next person to log into this tab.
 api.interceptors.response.use(
   (resp) => resp,
   (err: AxiosError) => {
     if (err.response?.status === 401) {
       localStorage.removeItem("saarthi_token");
+      useChat.getState().reset();
     }
     return Promise.reject(err);
   }
@@ -35,7 +40,6 @@ export function apiErrorMessage(err: unknown): string {
     const data = err.response?.data as { detail?: unknown } | undefined;
     if (data?.detail) {
       if (typeof data.detail === "string") return data.detail;
-      // Pydantic validation errors are arrays of {msg, loc, type}
       if (Array.isArray(data.detail)) {
         return data.detail.map((d) => (typeof d === "object" && d && "msg" in d ? (d as { msg: string }).msg : String(d))).join("; ");
       }

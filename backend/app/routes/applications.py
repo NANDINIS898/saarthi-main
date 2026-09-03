@@ -16,7 +16,7 @@ Endpoints:
 
 from typing import List
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Header, status
 from sqlalchemy.orm import Session
 
 from app.agents.decision_engine import DecisionEngine
@@ -24,7 +24,7 @@ from app.agents.negotiation_agent import NegotiationAgent
 from app.agents.sanction_writer import SanctionWriter
 from app.agents.underwriting_agent import UnderwritingAgent
 from app.database.connection import get_db
-from app.database.models import LoanOffer, RiskAssessment, SanctionLetter, User
+from app.database.models import IdempotencyKey, LoanOffer, RiskAssessment, SanctionLetter, User
 from app.schemas.loan import (
     ApplicationSummary, LoanApplicationCreate, LoanApplicationOut, LoanOfferOut,
     NegotiationRequest, NegotiationResponse, RiskAssessmentOut,
@@ -186,12 +186,123 @@ async def accept_offer(
     offer_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    idempotency_key: str | None = Header(
+        default=None,
+        alias="Idempotency-Key",
+    ),
 ):
-    """Accept this offer and generate a sanction letter PDF."""
+    """Accept this offer and generate a sanction letter PDF with idempotency protection."""
+
+    # Import existing Saarthi logger locally so no other part of this file changes.
+    from app.utils.logger import logger
+
+    # ---------------------------------------------------------
+    # 1. Require idempotency key
+    # ---------------------------------------------------------
+    if not idempotency_key:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=400,
+            detail="Idempotency-Key header is required.",
+        )
+
+    logger.info(
+        f"[IDEMPOTENCY] START "
+        f"key={idempotency_key} "
+        f"user={user.id} "
+        f"app={application_id} "
+        f"offer={offer_id}"
+    )
+
+    # ---------------------------------------------------------
+    # 2. Check whether this request was already processed
+    # ---------------------------------------------------------
+    existing = (
+        db.query(IdempotencyKey)
+        .filter(
+            IdempotencyKey.key == idempotency_key,
+            IdempotencyKey.user_id == user.id,
+        )
+        .first()
+    )
+
+    if existing:
+        logger.info(
+            f"[IDEMPOTENCY] DUPLICATE "
+            f"key={idempotency_key} "
+            f"→ returning cached result"
+        )
+
+        return existing.response
+
+    logger.info(
+        f"[IDEMPOTENCY] NEW REQUEST "
+        f"key={idempotency_key} "
+        f"→ executing operation"
+    )
+
+    # ---------------------------------------------------------
+    # 3. Normal Saarthi acceptance flow
+    # ---------------------------------------------------------
     app = LoanService.get(db, application_id, user)
-    offer = DecisionEngine.accept_offer(db, app, offer_id)
-    letter = await SanctionWriter.issue(db, app, offer, user)
-    return await _letter_with_signed_url(letter)
+
+    offer = DecisionEngine.accept_offer(
+        db,
+        app,
+        offer_id,
+    )
+
+    logger.info(
+        f"[IDEMPOTENCY] OPERATION EXECUTED "
+        f"key={idempotency_key} "
+        f"offer={offer.id}"
+    )
+
+    # ---------------------------------------------------------
+    # 4. Generate sanction letter
+    # ---------------------------------------------------------
+    letter = await SanctionWriter.issue(
+        db,
+        app,
+        offer,
+        user,
+    )
+
+    result = await _letter_with_signed_url(letter)
+
+    # ---------------------------------------------------------
+    # 5. Store response against idempotency key
+    # ---------------------------------------------------------
+    record = IdempotencyKey(
+        key=idempotency_key,
+        user_id=user.id,
+        endpoint=(
+            f"/applications/{application_id}"
+            f"/offers/{offer_id}/accept"
+        ),
+        response={
+            "id": result.id,
+            "application_id": result.application_id,
+            "ref_no": result.ref_no,
+            "pdf_url": result.pdf_url,
+            "signed_url": result.signed_url,
+            "status": result.status,
+            "created_at": result.created_at.isoformat(),
+        },
+    )
+
+    db.add(record)
+    db.commit()
+
+    logger.info(
+        f"[IDEMPOTENCY] STORED "
+        f"key={idempotency_key} "
+        f"→ future duplicates will reuse this result"
+    )
+
+    return result
+
 
 
 @router.get("/{application_id}/sanction", response_model=SanctionLetterOut)

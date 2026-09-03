@@ -62,10 +62,14 @@ class StorageService:
             "x-upsert": "true" if upsert else "false",
         }
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=80.0) as client:
                 r = await client.post(url, headers=headers, content=content)
         except httpx.HTTPError as e:
-            logger.error(f"Storage upload network error: {e}")
+            
+            logger.exception(f"Storage upload network error: "
+                             f"type={type(e).__name__}, "
+                             f"message={str(e)!r}"
+                             )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Storage upload failed (network).",

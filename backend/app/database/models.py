@@ -214,3 +214,29 @@ class AuditEvent(Base):
     user_agent = Column(String(255), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+
+class IdempotencyKey(Base):
+    __tablename__ = "idempotency_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    key = Column(String(255), unique=True, nullable=False, index=True)
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    endpoint = Column(String(255), nullable=False)
+
+    response = Column(JSON, nullable=False)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )

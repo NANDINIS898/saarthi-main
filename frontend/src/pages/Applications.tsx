@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, apiErrorMessage } from "../api/client";
 import type { ApplicationSummary, LoanApplication, LoanOffer } from "../api/types";
@@ -13,6 +13,7 @@ export default function Applications() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("all");
   const [query, setQuery] = useState("");
+ 
 
   useEffect(() => {
     let cancelled = false;
